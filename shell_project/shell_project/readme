@@ -1,7 +1,0 @@
-运行说明：
-python main.py rsid vcf格式的数据集地址 fasta格式的数据集地址 输出的文件地址
-
-——————
-安装样例：
-进入包的根目录
-在命令行运行： pip install . 安装包
