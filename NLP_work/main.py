@@ -14,13 +14,12 @@ import plotly.graph_objs as go
 from Adam import CustomAdam
 
 
-def read_ptb(path):   # 分割句子
+def read_ptb(path):   
     with open(path) as f:
         raw_text = f.read()
     s = [line.split() for line in raw_text.split('\n')]
     return s
-def subsample(sentences, vocab):  # 下采样：有概率的丢弃高无意义高频词
-    # 排除未知词元'<unk>'
+def subsample(sentences, vocab): 
     sentences = [[token for token in line if vocab[token] != vocab.unk]
                  for line in sentences]
 
@@ -32,9 +31,8 @@ def subsample(sentences, vocab):  # 下采样：有概率的丢弃高无意义�
 
     return ([[token for token in line if keep(token)] for line in sentences],
             counter)
-# 中心词 上下文提取
-def batchify(data):
-    """返回带有负采样的跳元模型的⼩批量样本"""
+
+def batchify(data): # small batch
     max_len = max(len(c) + len(n) for _, c, n in data)
     centers, contexts_negatives, masks, labels = [], [], [], []
     for center, context, negative in data:
@@ -50,7 +48,6 @@ def batchify(data):
 def get_centers_and_contexts(corpus, max_window_size):
     centers, contexts = [], []
     for line in corpus:
-    # 要形成“中⼼词-上下⽂词”对，每个句⼦⾄少需要有2个词
         if len(line) < 2:
             continue
         centers += line
@@ -58,7 +55,6 @@ def get_centers_and_contexts(corpus, max_window_size):
             window_size = random.randint(1, max_window_size)
             indices = list(range(max(0, i - window_size),
                              min(len(line), i + 1 + window_size)))
-            # 从上下⽂词中排除中⼼词
             indices.remove(i)
             contexts.append([line[idx] for idx in indices])
     return centers, contexts
@@ -79,14 +75,7 @@ class RandomGenerator:
         self.i += 1
         return self.candidates[self.i - 1]
 
-def compare_counts(token,sentences,subsampled):
-    return (f'"{token}"的数量：'
-            f'之前={sum([l.count(token) for l in sentences])}, '
-            f'之后={sum([l.count(token) for l in subsampled])}')
-
 def get_negatives(all_contexts, vocab, counter, K):
-    """返回负采样中的噪声词"""
-    # 索引为1、2、...（索引0是词表中排除的未知标记）
     sampling_weights = [counter[vocab.to_tokens(i)]**0.75
                         for i in range(1, len(vocab))]
     all_negatives, generator = [], RandomGenerator(sampling_weights)
@@ -94,7 +83,6 @@ def get_negatives(all_contexts, vocab, counter, K):
         negatives = []
         while len(negatives) < len(contexts) * K:
             neg = generator.draw()
-            # 噪声词不能是上下⽂词
             if neg not in contexts:
                 negatives.append(neg)
         all_negatives.append(negatives)
@@ -102,7 +90,6 @@ def get_negatives(all_contexts, vocab, counter, K):
 
 
 def load_data_ptb(batch_size, max_window_size, num_noise_words,path):
-    """下载PTB数据集，然后将其加载到内存中"""
     # num_workers = 4
     sentences = read_ptb(path)
     vocab = Vocab(sentences, min_freq=10)
@@ -136,7 +123,6 @@ def skip_gram(center, contexts_and_negatives, embed_v, embed_u):
     return pred
 
 class SigmoidBCELoss(nn.Module):
-# 带掩码的⼆元交叉熵损失
     def __init__(self):
         super().__init__()
     def forward(self, inputs, target, mask=None):
@@ -189,11 +175,10 @@ def evaluate(net, data_iter, loss, device):
 def get_similar_tokens(query_token, k, embed):
     W = embed.weight.data
     x = W[vocab[query_token]]
-    # 计算余弦相似性。增加1e-9以获得数值稳定性
     cos = torch.mv(W, x) / torch.sqrt(torch.sum(W * W, dim=1) *
     torch.sum(x * x) + 1e-9)
     topk = torch.topk(cos, k=k+1)[1].cpu().numpy().astype('int32')
-    for i in topk[1:]: # 删除输⼊词
+    for i in topk[1:]:
         print(f'cosine sim={float(cos[i]):.3f}: {vocab.to_tokens(i)}')
 
 def reduce_dimensions(path,words,test_iter,embed):
